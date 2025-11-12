@@ -1,5 +1,5 @@
-# Dockerfile - Playwright + Python (suitable for Render)
-FROM mcr.microsoft.com/playwright/python:v1.56.0-jammy
+# Dockerfile - Playwright + Python (recommended: use latest Playwright image)
+FROM mcr.microsoft.com/playwright/python:latest
 
 WORKDIR /app
 
@@ -12,5 +12,6 @@ COPY . .
 
 # Expose port (Render uses PORT env var)
 ENV PORT 10000
-# When running on Render, set gunicorn to bind to $PORT.
+
+# Run with gunicorn; keep timeout high for long solver runs
 CMD ["bash","-lc","exec gunicorn --bind 0.0.0.0:${PORT} app:app --workers 2 --timeout 300"]
