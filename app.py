@@ -1,4 +1,5 @@
 # app.py
+import os
 import json
 import logging
 import threading
@@ -23,13 +24,31 @@ console.setLevel(logging.INFO)
 logging.getLogger().addHandler(console)
 
 # Load secrets (email -> secret)
+# Priority:
+# 1) Environment variable SECRETS_JSON (stringified JSON)
+# 2) Local secrets.json file (development)
+SECRETS = {}
+SECRETS_ENV = os.getenv("SECRETS_JSON")
 SECRETS_FILE = Path("secrets.json")
-if not SECRETS_FILE.exists():
-    logging.warning("secrets.json not found. Create it with mappings email->secret.")
-    SECRETS = {}
+
+if SECRETS_ENV:
+    try:
+        SECRETS = json.loads(SECRETS_ENV)
+        logging.info("Loaded secrets from SECRETS_JSON environment variable.")
+    except Exception as e:
+        logging.exception("Failed to parse SECRETS_JSON environment variable; falling back to file if present.")
+        SECRETS = {}
+elif SECRETS_FILE.exists():
+    try:
+        with SECRETS_FILE.open() as f:
+            SECRETS = json.load(f)
+        logging.info("Loaded secrets from local secrets.json (local development).")
+    except Exception:
+        logging.exception("Failed to load secrets.json; starting with empty secrets.")
+        SECRETS = {}
 else:
-    with SECRETS_FILE.open() as f:
-        SECRETS = json.load(f)
+    logging.warning("No secrets provided (SECRETS_JSON env var not set and secrets.json not found). Starting with empty secrets.")
+    SECRETS = {}
 
 app = Flask(__name__)
 solver = QuizSolver(log_dir=LOG_DIR)
@@ -41,7 +60,7 @@ def api_solve():
     req_id = int(time.time() * 1000)
     try:
         payload = request.get_json(force=True)
-    except Exception as e:
+    except Exception:
         logging.exception("Invalid JSON received")
         return jsonify({"error": "invalid json"}), 400
 
@@ -58,6 +77,7 @@ def api_solve():
 
     expected = SECRETS.get(email)
     if expected is None or secret != expected:
+        # do not log the secret values; only log the fact that validation failed
         logging.warning(f"[{req_id}] Invalid secret for {email}")
         return jsonify({"error": "invalid secret"}), 403
 
