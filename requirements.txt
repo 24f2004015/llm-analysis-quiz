@@ -1,0 +1,10 @@
+Flask>=2.2
+gunicorn>=20.1
+playwright>=1.40.0
+requests>=2.31
+pdfplumber>=0.7.7
+pandas>=2.2
+beautifulsoup4>=4.12
+PyPDF2>=3.0
+python-dotenv>=1.0
+tqdm>=4.65
