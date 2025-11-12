@@ -1,25 +1,29 @@
-# Dockerfile - Playwright + Python production image
-# Uses the official Playwright image which already includes Playwright + browser binaries.
+# Dockerfile - robust Playwright + Python image for Render
 FROM mcr.microsoft.com/playwright/python:latest
 
-# Set working directory
 WORKDIR /app
 
-# Copy requirements and install Python dependencies (do NOT include playwright in requirements.txt)
+# Copy requirements and install Python dependencies (do NOT include playwright here ideally,
+# but we will explicitly install it below to ensure it's present).
 COPY requirements.txt .
 
-# Install Python deps. We don't reinstall Playwright here to avoid version/binary mismatches.
+# Install Python deps
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Explicitly install Playwright Python package (ensures the module is present)
+RUN pip install --no-cache-dir playwright
+
+# Install browser binaries for Playwright (with deps)
+RUN python -m playwright install --with-deps chromium
 
 # Copy application code
 COPY . .
 
-# Expose port (Render/Cloud Run will set PORT env var at runtime)
-ENV PORT 10000
-
-# Ensure any temp or cache dirs exist (optional)
+# Ensure logs dir exists
 RUN mkdir -p /app/logs
 
-# Run with gunicorn in production; keep timeout high for long solver tasks
-# Using bash -lc lets us expand ${PORT} at runtime.
+# Port (Render will set PORT env var when running)
+ENV PORT 10000
+
+# Run the app with gunicorn; keep timeout high for solver tasks
 CMD ["bash","-lc","exec gunicorn --bind 0.0.0.0:${PORT} app:app --workers 2 --timeout 300"]
