@@ -35,7 +35,7 @@ if SECRETS_ENV:
     try:
         SECRETS = json.loads(SECRETS_ENV)
         logging.info("Loaded secrets from SECRETS_JSON environment variable.")
-    except Exception as e:
+    except Exception:
         logging.exception("Failed to parse SECRETS_JSON environment variable; falling back to file if present.")
         SECRETS = {}
 elif SECRETS_FILE.exists():
@@ -52,6 +52,29 @@ else:
 
 app = Flask(__name__)
 solver = QuizSolver(log_dir=LOG_DIR)
+
+
+@app.route("/", methods=["GET"])
+def index():
+    """
+    Basic info endpoint — handy to open in a browser to confirm service is live.
+    """
+    info = {
+        "service": "LLM Analysis Quiz Solver",
+        "status": "ok",
+        "time": datetime.utcnow().isoformat() + "Z",
+        "secrets_loaded": len(SECRETS),
+        "endpoints": ["/api/solve (POST)", "/health (GET)"],
+    }
+    return jsonify(info), 200
+
+
+@app.route("/health", methods=["GET"])
+def health():
+    """
+    Lightweight health check for uptime monitors (should return very quickly).
+    """
+    return "ok", 200
 
 
 @app.route("/api/solve", methods=["POST"])
@@ -104,5 +127,8 @@ def _background_process(req_id, payload):
 
 
 if __name__ == "__main__":
-    logging.info("Starting LLM Analysis Quiz endpoint on http://0.0.0.0:8000")
-    app.run(host="0.0.0.0", port=8000)
+    # Read PORT from env so platform (Render/Cloud Run) can control it; default to 8000 locally.
+    port = int(os.getenv("PORT", "8000"))
+    logging.info(f"Starting LLM Analysis Quiz endpoint on http://0.0.0.0:{port} (secrets_loaded={len(SECRETS)})")
+    # For local dev we use Flask's server. In production we expect gunicorn to be used.
+    app.run(host="0.0.0.0", port=port)
