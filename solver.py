@@ -318,11 +318,33 @@ class QuizSolver:
 
                 answer, info = compute_answer_from_page_content(page, page_html=page_html_for_result)
                 debug["compute_info"] = info
+
+                # If compute returned an answer, use it.
                 if answer is not None:
                     debug["steps"].append("answer_computed")
                     debug["answer_value"] = answer
                 else:
                     debug["steps"].append("no_answer_computed")
+
+                    # EXTRA: check for explicit demo-style instruction in page text that allows any answer.
+                    # The demo page often contains:
+                    #   "answer": "anything you want"
+                    # or a visible JSON instructing the solver to post any answer.
+                    # If we detect that, set a safe default answer (small, harmless).
+                    try:
+                        body_excerpt = info.get("debug", {}).get("body_excerpt", "") if isinstance(info, dict) else ""
+                        # look for the phrase 'answer' followed by 'anything' in the excerpt (case-insensitive)
+                        if body_excerpt and re.search(r'"answer"\s*:\s*"[^"]*anything[^"]*"', body_excerpt, flags=re.IGNORECASE):
+                            candidate_auto = 42
+                            debug.setdefault("auto_answer_reason", "page_allows_any_answer_demo")
+                            debug.setdefault("auto_answer_source", "body_excerpt_pattern")
+                            debug["auto_answer_value"] = candidate_auto
+                            answer = candidate_auto
+                            debug["steps"].append("auto_answer_applied")
+                            debug["answer_value"] = answer
+                    except Exception:
+                        # don't crash the solver for this heuristic
+                        LOG.exception("Auto-detect demo-instruction failed")
 
                 # If that failed, try fallback heuristics you had previously (CSV/PDF links, tables etc.)
                 candidate_answer = None
